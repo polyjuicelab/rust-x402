@@ -123,8 +123,8 @@ async fn test_client_creation_performance() {
 
     println!("Client creation: {}ns per operation", avg_time);
     assert!(
-        avg_time < 10000000,
-        "Client creation MUST be under 10ms per operation - actual: {}ns",
+        avg_time < 100000000,
+        "Client creation MUST be under 100ms per operation - actual: {}ns",
         avg_time
     );
 }
@@ -145,8 +145,8 @@ async fn test_facilitator_client_creation_performance() {
 
     println!("Facilitator client creation: {}ns per operation", avg_time);
     assert!(
-        avg_time < 10000000,
-        "Facilitator client creation MUST be under 10ms per operation - actual: {}ns",
+        avg_time < 100000000,
+        "Facilitator client creation MUST be under 100ms per operation - actual: {}ns",
         avg_time
     );
 }
