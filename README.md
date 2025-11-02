@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 💳 Making Payments with a Client
 
-```rust
+```rust,no_run
 use rust_x402::client::X402Client;
 
 #[tokio::main]
@@ -186,6 +186,51 @@ See the `examples/` directory for complete working examples:
 - 💰 `facilitator.rs`: Custom facilitator implementation
 - 🏦 `real_implementation_demo.rs`: Real wallet and blockchain integration
 - 🔐 `real_wallet_integration.rs`: Production-ready wallet integration
+
+## 🏗️ Module Structure
+
+This project follows a clean, modular architecture for better maintainability:
+
+```text
+src/
+├── facilitator/        # Payment verification & settlement
+│   ├── mod.rs         # Main client implementation
+│   ├── coinbase.rs    # Coinbase CDP integration
+│   └── tests.rs       # Comprehensive test suite
+│
+├── crypto/            # Cryptographic utilities
+│   ├── mod.rs         # Module exports
+│   ├── jwt.rs         # JWT authentication
+│   ├── eip712.rs      # EIP-712 typed data hashing
+│   ├── signature.rs   # ECDSA signature verification
+│   └── tests.rs       # Crypto test suite
+│
+├── types/             # Core protocol types
+│   ├── mod.rs         # Type exports
+│   ├── network.rs     # Network configurations
+│   ├── payment.rs     # Payment types
+│   ├── facilitator.rs # Facilitator types
+│   ├── discovery.rs   # Discovery API types
+│   └── constants.rs   # Protocol constants
+│
+├── middleware/        # Web framework middleware
+│   ├── mod.rs         # Module exports
+│   ├── config.rs      # Middleware configuration
+│   ├── payment.rs     # Payment processing logic
+│   ├── service.rs     # Tower service layer
+│   └── tests.rs       # Middleware tests
+│
+└── ...                # Other modules
+```
+
+**Benefits**:
+- 📖 **Clear Organization**: Each module has a single, well-defined responsibility
+- 🔍 **Easy Navigation**: Find code quickly in focused, smaller files
+- 📚 **Self-Documenting**: Rich module-level documentation in each `mod.rs`
+- 🧪 **Better Testing**: Isolated test suites per module
+- 🤝 **Team Friendly**: Reduces merge conflicts
+
+All module documentation is embedded in the code - run `cargo doc --no-deps --open` to view!
 
 ## 📊 Testing
 
