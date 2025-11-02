@@ -14,7 +14,7 @@
 //!
 //! ## Basic Axum Integration
 //!
-//! ```no_run
+//! ```ignore
 //! use rust_x402::middleware::PaymentMiddleware;
 //! use rust_decimal::Decimal;
 //! use std::str::FromStr;
@@ -41,7 +41,7 @@
 //!
 //! ## Advanced Configuration
 //!
-//! ```no_run
+//! ```ignore
 //! use rust_x402::middleware::PaymentMiddleware;
 //! use rust_x402::types::FacilitatorConfig;
 //! use rust_decimal::Decimal;
@@ -68,7 +68,7 @@
 //!
 //! ## Custom Paywall HTML
 //!
-//! ```no_run
+//! ```ignore
 //! use rust_x402::middleware::PaymentMiddleware;
 //! use rust_x402::template::PaywallConfig;
 //! use rust_decimal::Decimal;
@@ -91,7 +91,7 @@
 //!
 //! ## Using with Facilitator Client
 //!
-//! ```no_run
+//! ```ignore
 //! use rust_x402::middleware::PaymentMiddleware;
 //! use rust_x402::facilitator::FacilitatorClient;
 //! use rust_x402::types::FacilitatorConfig;

@@ -191,7 +191,7 @@ See the `examples/` directory for complete working examples:
 
 This project follows a clean, modular architecture for better maintainability:
 
-```
+```text
 src/
 ├── facilitator/        # Payment verification & settlement
 │   ├── mod.rs         # Main client implementation
