@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 💳 Making Payments with a Client
 
-```rust
+```rust,no_run
 use rust_x402::client::X402Client;
 
 #[tokio::main]
