@@ -1,6 +1,6 @@
 //! Tests for facilitator client
 
-use super::{FacilitatorClient, DEFAULT_FACILITATOR_URL};
+use super::FacilitatorClient;
 use crate::types::{
     ExactEvmPayload, ExactEvmPayloadAuthorization, FacilitatorConfig, PaymentPayload,
     PaymentRequirements,
