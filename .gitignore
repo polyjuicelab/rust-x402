@@ -37,3 +37,7 @@ lcov.info
 *.bak
 *.backup
 docs/
+
+# Docker
+integration-test/.env
+docker-compose.override.yml

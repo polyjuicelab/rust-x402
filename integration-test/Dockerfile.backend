@@ -1,0 +1,44 @@
+# Multi-stage build for backend server
+FROM rust:latest as builder
+
+WORKDIR /app
+
+# Copy manifests
+COPY Cargo.toml Cargo.lock ./
+COPY README.md ./
+
+# Copy source code structure
+COPY src ./src
+COPY main.rs ./
+
+# Create dummy binary to cache dependencies
+RUN mkdir -p integration-test/backend && \
+    echo 'fn main() {}' > integration-test/backend/main.rs && \
+    cargo build --release --bin integration-test-backend --features axum || true
+
+# Copy actual backend source
+COPY integration-test/backend/main.rs ./integration-test/backend/
+
+# Build the actual binary
+RUN touch integration-test/backend/main.rs && \
+    cargo build --release --bin integration-test-backend --features axum
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the binary from builder
+COPY --from=builder /app/target/release/integration-test-backend /app/integration-test-backend
+
+EXPOSE 4021
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
+    CMD curl -f http://localhost:4021/health || exit 1
+
+CMD ["/app/integration-test-backend"]
+

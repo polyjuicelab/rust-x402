@@ -1,0 +1,43 @@
+# Multi-stage build for facilitator
+FROM rust:latest as builder
+
+WORKDIR /app
+
+# Copy manifests
+COPY Cargo.toml Cargo.lock ./
+COPY README.md ./
+
+# Copy source code
+COPY src ./src
+COPY main.rs ./
+
+# Build dependencies first (for caching)
+RUN mkdir -p src/bin && \
+    echo 'fn main() {}' > src/bin/facilitator.rs && \
+    cargo build --release --bin facilitator --features axum,redis || true
+
+# Copy actual source and rebuild
+COPY src/bin/facilitator.rs ./src/bin/
+COPY main.rs ./
+RUN touch src/bin/facilitator.rs main.rs && \
+    cargo build --release --bin facilitator --features axum,redis
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the binary from builder
+COPY --from=builder /app/target/release/facilitator /app/facilitator
+
+EXPOSE 4020
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
+    CMD curl -f http://localhost:4020/health || exit 1
+
+CMD ["/app/facilitator"]
+
