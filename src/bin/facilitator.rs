@@ -130,15 +130,21 @@ impl SimpleFacilitator {
 /// Request types for the facilitator API
 #[derive(Debug, Deserialize)]
 struct VerifyRequest {
+    #[serde(rename = "x402Version")]
     x402_version: u32,
+    #[serde(rename = "paymentPayload")]
     payment_payload: PaymentPayload,
+    #[serde(rename = "paymentRequirements")]
     payment_requirements: PaymentRequirements,
 }
 
 #[derive(Debug, Deserialize)]
 struct SettleRequest {
+    #[serde(rename = "x402Version")]
     x402_version: u32,
+    #[serde(rename = "paymentPayload")]
     payment_payload: PaymentPayload,
+    #[serde(rename = "paymentRequirements")]
     payment_requirements: PaymentRequirements,
 }
 

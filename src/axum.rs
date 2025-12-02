@@ -115,14 +115,20 @@ pub async fn payment_middleware_handler(
 ) -> impl IntoResponse {
     let config = middleware.config().clone();
     let headers = request.headers().clone();
+    let path = request.uri().path();
+
+    // Skip payment middleware for health check endpoints
+    if path == "/health" || path.starts_with("/health/") {
+        return next.run(request).await;
+    }
 
     // Determine the resource URL
     let resource = if let Some(ref resource_url) = config.resource {
         resource_url.clone()
     } else if let Some(ref root_url) = config.resource_root_url {
-        format!("{}{}", root_url, request.uri().path())
+        format!("{}{}", root_url, path)
     } else {
-        request.uri().path().to_string()
+        path.to_string()
     };
 
     // Create payment requirements
@@ -386,8 +392,14 @@ pub fn create_payment_app(
     let router = Router::new();
     let router = routes(router);
 
-    // Apply service layers
-    router.layer(config.create_service())
+    // Convert config to middleware
+    let middleware = config.into_middleware();
+
+    // Apply payment middleware to all routes
+    router.layer(axum::middleware::from_fn_with_state(
+        middleware,
+        payment_middleware_handler,
+    ))
 }
 
 /// Helper for creating payment-protected handlers

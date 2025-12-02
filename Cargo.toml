@@ -82,6 +82,7 @@ tokio-test = "0.4"
 tempfile = "3.0"
 mockito = "1.0"
 env_logger = "0.11"
+reqwest = { version = "0.12", features = ["json"] }
 
 [features]
 default = ["axum"]
@@ -127,4 +128,9 @@ path = "examples/mainnet_server.rs"
 [[bin]]
 name = "facilitator"
 path = "main.rs"
+required-features = ["axum"]
+
+[[bin]]
+name = "integration-test-backend"
+path = "integration-test/backend/main.rs"
 required-features = ["axum"]

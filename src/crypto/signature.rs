@@ -80,9 +80,18 @@ pub fn sign_message_hash(message_hash: H256, private_key: &str) -> Result<String
 
 /// Convert a public key to an Ethereum address
 fn ethereum_address_from_pubkey(pubkey: &k256::ecdsa::VerifyingKey) -> Result<Address> {
-    let pubkey_bytes = pubkey.to_sec1_bytes();
+    // Get the public key in uncompressed format (65 bytes)
+    // k256 uses compressed format by default, so we need to convert it
+    use k256::elliptic_curve::sec1::ToEncodedPoint;
+
+    let encoded_point = pubkey.to_encoded_point(false); // false = uncompressed
+    let pubkey_bytes = encoded_point.as_bytes();
+
     if pubkey_bytes.len() != 65 {
-        return Err(X402Error::invalid_signature("Invalid public key length"));
+        return Err(X402Error::invalid_signature(format!(
+            "Invalid public key length: expected 65 bytes, got {} bytes",
+            pubkey_bytes.len()
+        )));
     }
 
     // Remove the first byte (0x04) and hash the remaining 64 bytes

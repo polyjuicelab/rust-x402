@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x402 Integration Test Frontend</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+        }
+
+        .endpoint-list {
+            list-style: none;
+        }
+
+        .endpoint-list li {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: #f8f9fa;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .endpoint-list li code {
+            background: #e9ecef;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .response {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .error {
+            border-left-color: #dc3545;
+            background: #fee;
+            color: #721c24;
+        }
+
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .status-200 {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-402 {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .config-section {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .config-section label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .config-section input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 x402 Integration Test Frontend</h1>
+            <p class="subtitle">Test x402 payment flows with Docker integration test environment</p>
+        </div>
+
+        <div class="card">
+            <h2>Configuration</h2>
+            <div class="config-section">
+                <label for="backend-url">Backend URL:</label>
+                <input type="text" id="backend-url" value="http://localhost:4021" placeholder="http://localhost:4021">
+            </div>
+            <div class="config-section">
+                <label for="private-key">Test Private Key (for signing):</label>
+                <input type="text" id="private-key" value="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" placeholder="0x...">
+            </div>
+            <div class="config-section">
+                <label for="payer-address">Payer Address:</label>
+                <input type="text" id="payer-address" value="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" placeholder="0x...">
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Test Endpoints</h2>
+            <ul class="endpoint-list">
+                <li>
+                    <span><code>GET /health</code> - Health check (no payment)</span>
+                    <button onclick="testEndpoint('/health')">Test</button>
+                </li>
+                <li>
+                    <span><code>GET /joke</code> - Premium joke API</span>
+                    <button onclick="testEndpoint('/joke')">Test</button>
+                </li>
+                <li>
+                    <span><code>GET /api/data</code> - Premium data API</span>
+                    <button onclick="testEndpoint('/api/data')">Test</button>
+                </li>
+                <li>
+                    <span><code>GET /test</code> - Test endpoint</span>
+                    <button onclick="testEndpoint('/test')">Test</button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>Response</h2>
+            <div id="response" class="response" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
