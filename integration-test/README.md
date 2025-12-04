@@ -4,50 +4,63 @@ This directory contains the Docker-based integration test setup for the x402 Rus
 
 ## Overview
 
-The integration test environment includes:
+The integration test environment uses a single all-in-one Docker container that includes:
 
 - **Anvil**: Base node fork using Foundry's Anvil
+- **Redis**: Storage backend for facilitator nonce tracking
 - **Backend**: Axum server with x402 payment middleware
 - **Facilitator**: Standalone facilitator service with Redis storage
-- **Frontend**: Simple web application for testing payment flows
-- **Redis**: Storage backend for facilitator nonce tracking
 
 ## Prerequisites
 
-- Docker and Docker Compose installed
+- Docker installed
 - Rust toolchain (for running tests)
-- At least 4GB RAM available for Docker
+- At least 2GB RAM available for Docker
 
 ## Quick Start
 
-### 1. Start Services
+### 1. Build the All-in-One Container
 
 ```bash
-# Start all services
-docker-compose up -d
+# Build the container
+docker build -f integration-test/Dockerfile.all-in-one -t x402-all-in-one .
 
-# Check service status
-docker-compose ps
-
-# View logs
-docker-compose logs -f
+# Or with BuildKit for faster builds
+DOCKER_BUILDKIT=1 docker build -f integration-test/Dockerfile.all-in-one -t x402-all-in-one .
 ```
 
-### 2. Wait for Services to be Ready
+### 2. Start the Container
 
-Services will start in order:
-1. Anvil (Base node fork)
-2. Redis
-3. Facilitator (depends on Redis and Anvil)
-4. Backend (depends on Facilitator and Anvil)
-5. Frontend (depends on Backend)
+```bash
+# Start the container
+docker run -d \
+  --name x402-test \
+  -p 8545:8545 \
+  -p 6379:6379 \
+  -p 4020:4020 \
+  -p 4021:4021 \
+  x402-all-in-one
 
-You can check health endpoints:
+# Check container status
+docker ps | grep x402-test
+
+# View logs
+docker logs -f x402-test
+```
+
+### 3. Wait for Services to be Ready
+
+The container will start all services automatically. Wait for the log message:
+```
+All services are ready!
+```
+
+You can also check health endpoints:
 - Backend: http://localhost:4021/health
 - Facilitator: http://localhost:4020/health
-- Frontend: http://localhost:3000
+- Anvil: http://localhost:8545 (RPC endpoint)
 
-### 3. Run Integration Tests
+### 4. Run Integration Tests
 
 ```bash
 # Run Docker integration tests
@@ -57,9 +70,15 @@ cargo test --test docker_integration_test --features axum,redis -- --nocapture
 cargo test --test docker_integration_test test_end_to_end_payment_flow --features axum,redis -- --nocapture
 ```
 
-### 4. Access Frontend
+### 5. Stop the Container
 
-Open http://localhost:3000 in your browser to access the test frontend.
+```bash
+# Stop the container
+docker stop x402-test
+
+# Remove the container
+docker rm x402-test
+```
 
 ## Service Details
 
@@ -96,15 +115,6 @@ Default test account:
   - `GET /supported` - Get supported payment schemes
   - `GET /health` - Health check
 
-### Frontend
-
-- **Port**: 3000
-- **Purpose**: Web interface for testing payment flows
-- **Features**:
-  - Test protected endpoints
-  - View payment requirements
-  - Display payment status
-
 ### Redis
 
 - **Port**: 6379
@@ -115,25 +125,24 @@ Default test account:
 
 ### Environment Variables
 
-Copy `.env.example` to `.env` and modify as needed:
+You can customize the container behavior with environment variables:
 
 ```bash
-cp integration-test/.env.example integration-test/.env
+docker run -d \
+  --name x402-test \
+  -p 8545:8545 \
+  -p 6379:6379 \
+  -p 4020:4020 \
+  -p 4021:4021 \
+  -e ANVIL_FORK_URL=https://sepolia.base.org \
+  -e ANVIL_FORK_BLOCK=latest \
+  x402-all-in-one
 ```
 
 Key variables:
-- `ANVIL_FORK_URL`: Base Sepolia RPC URL for forking
-- `FACILITATOR_URL`: Facilitator service URL
-- `RPC_URL`: Anvil RPC URL
-- `NETWORK`: Network name (base-sepolia)
-
-### Docker Compose
-
-Modify `docker-compose.yml` to adjust:
-- Port mappings
-- Resource limits
-- Service dependencies
-- Health check intervals
+- `ANVIL_FORK_URL`: Base Sepolia RPC URL for forking (default: https://sepolia.base.org)
+- `ANVIL_FORK_BLOCK`: Specific block number to fork from (default: latest)
+- `NETWORK`: Network name (default: base-sepolia)
 
 ## Testing Scenarios
 
@@ -163,26 +172,37 @@ curl http://localhost:4020/health
 
 ## Troubleshooting
 
-### Services Not Starting
+### Container Not Starting
 
 ```bash
 # Check logs
-docker-compose logs
+docker logs x402-test
 
-# Restart services
-docker-compose restart
+# Check container status
+docker ps -a | grep x402-test
 
-# Rebuild images
-docker-compose build --no-cache
+# Restart container
+docker restart x402-test
 ```
 
 ### Port Conflicts
 
-If ports are already in use, modify `docker-compose.yml`:
+If ports are already in use, use different host ports:
 
-```yaml
-ports:
-  - "4022:4021"  # Change host port
+```bash
+docker run -d \
+  --name x402-test \
+  -p 8546:8545 \    # Changed from 8545
+  -p 6380:6379 \    # Changed from 6379
+  -p 4022:4020 \    # Changed from 4020
+  -p 4023:4021 \    # Changed from 4021
+  x402-all-in-one
+```
+
+Then update test URLs in `tests/docker_integration_test.rs`:
+```rust
+const BACKEND_URL: &str = "http://localhost:4023";
+const FACILITATOR_URL: &str = "http://localhost:4022";
 ```
 
 ### Anvil Fork Issues
@@ -192,68 +212,92 @@ If Anvil fails to fork:
 1. Check internet connection
 2. Verify `ANVIL_FORK_URL` is accessible
 3. Try a different fork block number
+4. Check container logs: `docker logs x402-test`
 
 ### Test Failures
 
-1. Ensure all services are healthy
-2. Check service logs: `docker-compose logs`
-3. Verify network connectivity between services
+1. Ensure container is running: `docker ps | grep x402-test`
+2. Check service logs: `docker logs x402-test`
+3. Verify health endpoints are responding
 4. Check test account has sufficient balance
 
 ## Development
 
-### Building Images Locally
+### Building the Container
 
 ```bash
-# Build specific service
-docker-compose build backend
+# Standard build
+docker build -f integration-test/Dockerfile.all-in-one -t x402-all-in-one .
 
-# Build all services
-docker-compose build
+# Build with BuildKit cache (faster rebuilds)
+DOCKER_BUILDKIT=1 docker build -f integration-test/Dockerfile.all-in-one -t x402-all-in-one .
+
+# Build without cache (clean build)
+docker build --no-cache -f integration-test/Dockerfile.all-in-one -t x402-all-in-one .
 ```
 
 ### Running Tests Locally
 
 ```bash
-# Start services
-docker-compose up -d
+# Start container
+docker run -d --name x402-test \
+  -p 8545:8545 -p 6379:6379 -p 4020:4020 -p 4021:4021 \
+  x402-all-in-one
+
+# Wait for services to be ready (check logs)
+docker logs -f x402-test
 
 # Run tests
 cargo test --test docker_integration_test --features axum,redis
 
-# Stop services
-docker-compose down
+# Stop container
+docker stop x402-test
+docker rm x402-test
 ```
 
 ### Modifying Services
 
 1. Make code changes
-2. Rebuild image: `docker-compose build <service>`
-3. Restart service: `docker-compose restart <service>`
+2. Rebuild container: `docker build -f integration-test/Dockerfile.all-in-one -t x402-all-in-one .`
+3. Stop old container: `docker stop x402-test && docker rm x402-test`
+4. Start new container: `docker run -d --name x402-test -p 8545:8545 -p 6379:6379 -p 4020:4020 -p 4021:4021 x402-all-in-one`
 
 ## CI/CD
 
-The GitHub Actions workflow (`.github/workflows/docker-integration.yml`) automatically:
+The GitHub Actions workflow (`.github/workflows/docker-integration.yml`) should:
 
-1. Starts Docker services
-2. Waits for health checks
-3. Runs integration tests
-4. Collects logs on failure
-5. Cleans up services
+1. Build the all-in-one container
+2. Start the container
+3. Wait for health checks
+4. Run integration tests
+5. Collect logs on failure
+6. Clean up container
 
 ## Architecture
 
 ```
-┌─────────┐     ┌──────────┐     ┌─────────────┐
-│ Frontend│────▶│ Backend │────▶│ Facilitator│
-└─────────┘     └────┬────┘     └──────┬──────┘
-                     │                 │
-                     │                 │
-                ┌────▼────┐      ┌─────▼────┐
-                │  Anvil  │      │  Redis   │
-                │  (RPC)  │      │ (Storage)│
-                └─────────┘      └──────────┘
+┌─────────────────────────────────────────┐
+│         All-in-One Container            │
+│                                         │
+│  ┌─────────┐     ┌──────────┐          │
+│  │ Backend │────▶│Facilitator│         │
+│  └────┬────┘     └──────┬───┘          │
+│       │                 │               │
+│  ┌────▼────┐      ┌─────▼────┐         │
+│  │  Anvil  │      │  Redis   │         │
+│  │  (RPC)  │      │ (Storage)│         │
+│  └─────────┘      └──────────┘          │
+│                                         │
+└─────────────────────────────────────────┘
 ```
+
+## Advantages of All-in-One Approach
+
+- **Simplicity**: Single container to manage
+- **Fast Startup**: All services start together
+- **Resource Efficient**: Shared base image
+- **Easy Testing**: One command to start everything
+- **CI/CD Friendly**: Simpler workflow setup
 
 ## Security Notes
 
@@ -267,14 +311,15 @@ The GitHub Actions workflow (`.github/workflows/docker-integration.yml`) automat
 ## Cleanup
 
 ```bash
-# Stop and remove containers
-docker-compose down
+# Stop and remove container
+docker stop x402-test
+docker rm x402-test
 
-# Remove volumes (clears Redis data)
-docker-compose down -v
+# Remove image
+docker rmi x402-all-in-one
 
-# Remove images
-docker-compose down --rmi all
+# Clean up all Docker resources (use with caution)
+docker system prune -a
 ```
 
 ## Next Steps
@@ -283,4 +328,3 @@ docker-compose down --rmi all
 - Implement USDC contract deployment
 - Add performance benchmarks
 - Create load testing scenarios
-

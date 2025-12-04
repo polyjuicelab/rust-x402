@@ -1,11 +1,15 @@
 //! Docker-based integration tests for x402
 //!
-//! These tests require Docker and docker-compose to be running.
+//! These tests require the all-in-one Docker container to be running.
 //! Run with: `cargo test --test docker_integration_test --features axum,redis`
 //!
 //! Prerequisites:
-//! - Docker and docker-compose installed
-//! - Services started: `docker-compose up -d`
+//! - Docker installed
+//! - All-in-one container built and started:
+//!   ```bash
+//!   docker build -f integration-test/Dockerfile.all-in-one -t x402-all-in-one .
+//!   docker run -d -p 8545:8545 -p 6379:6379 -p 4020:4020 -p 4021:4021 --name x402-test x402-all-in-one
+//!   ```
 //! - Services healthy and ready
 
 use base64::Engine;
