@@ -12,7 +12,10 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files first (for better caching)
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
+# Cargo.lock is optional (may not exist for library crates)
+# If it exists, it will be copied; if not, Cargo will generate it
+COPY Cargo.lock* ./
 COPY README.md ./
 
 # Copy source code structure

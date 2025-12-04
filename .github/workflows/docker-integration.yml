@@ -40,23 +40,68 @@ jobs:
       - name: Wait for services health checks
         run: |
           echo "Waiting for all services to be healthy..."
-          for i in {1..60}; do
-            if curl -f http://localhost:4021/health > /dev/null 2>&1 && \
-               curl -f http://localhost:4020/health > /dev/null 2>&1; then
-              echo "All services are healthy!"
+          
+          # Wait for Redis to be ready
+          echo "Checking Redis..."
+          for i in {1..30}; do
+            if docker exec x402-test redis-cli ping > /dev/null 2>&1; then
+              echo "Redis is ready!"
               break
             fi
-            echo "Waiting for services... ($i/60)"
+            echo "Waiting for Redis... ($i/30)"
+            sleep 2
+          done
+          
+          # Wait for Anvil RPC to be ready
+          echo "Checking Anvil..."
+          for i in {1..30}; do
+            if curl -f -X POST -H "Content-Type: application/json" \
+              -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+              http://localhost:8545 > /dev/null 2>&1; then
+              echo "Anvil is ready!"
+              break
+            fi
+            echo "Waiting for Anvil... ($i/30)"
+            sleep 2
+          done
+          
+          # Wait for Facilitator to be ready
+          echo "Checking Facilitator..."
+          for i in {1..60}; do
+            if curl -f http://localhost:4020/health > /dev/null 2>&1; then
+              echo "Facilitator is ready!"
+              break
+            fi
+            echo "Waiting for Facilitator... ($i/60)"
+            sleep 2
+          done
+          
+          # Wait for Backend to be ready
+          echo "Checking Backend..."
+          for i in {1..60}; do
+            if curl -f http://localhost:4021/health > /dev/null 2>&1; then
+              echo "Backend is ready!"
+              break
+            fi
+            echo "Waiting for Backend... ($i/60)"
             sleep 2
           done
           
           # Final check - fail if services aren't ready
+          if ! docker exec x402-test redis-cli ping > /dev/null 2>&1; then
+            echo "Redis failed to become ready"
+            docker logs x402-test
+            exit 1
+          fi
+          
           if ! curl -f http://localhost:4021/health > /dev/null 2>&1 || \
              ! curl -f http://localhost:4020/health > /dev/null 2>&1; then
             echo "Services failed to become healthy"
             docker logs x402-test
             exit 1
           fi
+          
+          echo "All services are healthy and ready!"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -92,6 +137,14 @@ jobs:
           echo ""
           echo "=== Container status ==="
           docker ps -a | grep x402-test || true
+          echo ""
+          echo "=== Redis status ==="
+          docker exec x402-test redis-cli ping || true
+          echo ""
+          echo "=== Anvil RPC status ==="
+          curl -X POST -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+            http://localhost:8545 || true
           echo ""
           echo "=== Service health checks ==="
           curl -v http://localhost:4021/health || true
