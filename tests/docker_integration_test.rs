@@ -536,7 +536,7 @@ async fn test_multiple_endpoints() {
 
         // Parse payment requirements
         let payment_req_response = assert_payment_required(response, endpoint)
-                .await
+            .await
             .unwrap_or_else(|_| {
                 panic!("Should receive valid payment requirements for {}", endpoint)
             });

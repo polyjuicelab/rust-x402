@@ -6,8 +6,8 @@
 //! Note: These tests require Redis to be running. They will be skipped
 //! if Redis is not available.
 
-use std::env;
 use rust_x402::facilitator_storage::{InMemoryStorage, NonceStorage};
+use std::env;
 
 #[cfg(feature = "redis")]
 use rust_x402::facilitator_storage::redis_storage::RedisStorage;
