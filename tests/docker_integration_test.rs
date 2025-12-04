@@ -21,30 +21,10 @@ use tokio::time::sleep;
 // Test configuration
 const BACKEND_URL: &str = "http://localhost:4021";
 const FACILITATOR_URL: &str = "http://localhost:4020";
-const ANVIL_URL: &str = "http://localhost:8545";
 
 // Test account from Anvil (first pre-funded account)
 const TEST_PRIVATE_KEY: &str = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const TEST_PAYER_ADDRESS: &str = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
-
-/// Custom test error for better error messages
-#[derive(Debug)]
-struct TestError {
-    message: String,
-    context: Option<String>,
-}
-
-impl std::fmt::Display for TestError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(ref ctx) = self.context {
-            write!(f, "{} (Context: {})", self.message, ctx)
-        } else {
-            write!(f, "{}", self.message)
-        }
-    }
-}
-
-impl std::error::Error for TestError {}
 
 /// Wait for a service to be ready by checking its health endpoint
 async fn wait_for_service(url: &str, max_wait: Duration) -> Result<()> {
@@ -540,7 +520,7 @@ async fn test_multiple_endpoints() {
             .get(&format!("{}{}", BACKEND_URL, endpoint))
             .send()
             .await
-            .expect(&format!("Request to {} should succeed", endpoint));
+            .unwrap_or_else(|_| panic!("Request to {} should succeed", endpoint));
 
         if response.status() != 402 {
             panic!(
@@ -551,38 +531,31 @@ async fn test_multiple_endpoints() {
         }
 
         // Parse payment requirements
-        let payment_req_response =
-            assert_payment_required(response, endpoint)
-                .await
-                .expect(&format!(
-                    "Should receive valid payment requirements for {}",
-                    endpoint
-                ));
+        let payment_req_response = assert_payment_required(response, endpoint)
+            .await
+            .unwrap_or_else(|_| {
+                panic!("Should receive valid payment requirements for {}", endpoint)
+            });
 
         let payment_req = &payment_req_response.accepts[0];
 
         // Create payment payload
-        let payment_payload = create_test_payment_payload(payment_req).expect(&format!(
-            "Payment payload creation should succeed for {}",
-            endpoint
-        ));
+        let payment_payload = create_test_payment_payload(payment_req)
+            .unwrap_or_else(|_| panic!("Payment payload creation should succeed for {}", endpoint));
 
         // Retry with payment
         let final_response = client
             .get(&format!("{}{}", BACKEND_URL, endpoint))
             .payment(&payment_payload)
-            .expect(&format!(
-                "Payment header creation should succeed for {}",
-                endpoint
-            ))
+            .unwrap_or_else(|_| panic!("Payment header creation should succeed for {}", endpoint))
             .send()
             .await
-            .expect(&format!("Payment request should succeed for {}", endpoint));
+            .unwrap_or_else(|_| panic!("Payment request should succeed for {}", endpoint));
 
         // Verify success
         assert_payment_success(final_response, endpoint)
             .await
-            .expect(&format!("Payment should be successful for {}", endpoint));
+            .unwrap_or_else(|_| panic!("Payment should be successful for {}", endpoint));
     }
 }
 
