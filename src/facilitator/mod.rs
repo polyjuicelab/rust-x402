@@ -95,7 +95,6 @@ use crate::types::{
 };
 use crate::{Result, X402Error};
 use reqwest::Client;
-use serde_json::json;
 
 pub mod coinbase;
 
@@ -163,9 +162,10 @@ impl FacilitatorClient {
             serde_json::to_string_pretty(payment_requirements).unwrap_or_default()
         );
 
-        let request_body = json!({
-            "paymentPayload": payment_payload,
-            "paymentRequirements": payment_requirements,
+        let request_body = serde_json::json!({
+            "x402Version": crate::types::X402_VERSION,
+            "paymentPayload": serde_json::to_value(payment_payload).map_err(|e| X402Error::facilitator_error(format!("Failed to serialize payment payload: {}", e)))?,
+            "paymentRequirements": serde_json::to_value(payment_requirements).map_err(|e| X402Error::facilitator_error(format!("Failed to serialize payment requirements: {}", e)))?,
         });
 
         tracing::debug!(
@@ -221,9 +221,10 @@ impl FacilitatorClient {
         payment_payload: &PaymentPayload,
         payment_requirements: &PaymentRequirements,
     ) -> Result<SettleResponse> {
-        let request_body = json!({
-            "paymentPayload": payment_payload,
-            "paymentRequirements": payment_requirements,
+        let request_body = serde_json::json!({
+            "x402Version": crate::types::X402_VERSION,
+            "paymentPayload": serde_json::to_value(payment_payload).map_err(|e| X402Error::facilitator_error(format!("Failed to serialize payment payload: {}", e)))?,
+            "paymentRequirements": serde_json::to_value(payment_requirements).map_err(|e| X402Error::facilitator_error(format!("Failed to serialize payment requirements: {}", e)))?,
         });
 
         let mut request = self

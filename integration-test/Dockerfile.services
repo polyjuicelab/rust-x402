@@ -1,0 +1,66 @@
+# Multi-stage build for both backend and facilitator services
+# Optimized for build caching to avoid rebuilding dependencies
+FROM rust:latest as builder
+
+WORKDIR /app
+
+# Install build dependencies that rarely change
+RUN apt-get update && \
+    apt-get install -y pkg-config libssl-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files first (for better caching)
+COPY Cargo.toml Cargo.lock ./
+COPY README.md ./
+
+# Copy source code structure (needed for Cargo to understand the project)
+COPY src ./src
+COPY main.rs ./
+
+# Create dummy binaries to cache dependencies
+# This allows Cargo to cache dependencies separately from binary source code
+RUN mkdir -p src/bin integration-test/backend/src && \
+    echo 'fn main() {}' > src/bin/facilitator.rs && \
+    echo 'fn main() {}' > integration-test/backend/src/main.rs && \
+    cargo build --release --bin facilitator --bin integration-test-backend --features axum,redis || \
+    cargo build --release --bin facilitator --features axum,redis || \
+    cargo build --release --bin integration-test-backend --features axum || true
+
+# Copy actual binary source files (this invalidates cache only when binaries change)
+COPY src/bin/facilitator.rs ./src/bin/
+COPY integration-test/backend/main.rs ./integration-test/backend/main.rs
+
+# Build actual binaries (dependencies are already built and cached)
+RUN touch src/bin/facilitator.rs integration-test/backend/main.rs && \
+    cargo build --release --bin facilitator --bin integration-test-backend --features axum,redis
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy both binaries from builder
+COPY --from=builder /app/target/release/facilitator /app/facilitator
+COPY --from=builder /app/target/release/integration-test-backend /app/integration-test-backend
+
+# Create entrypoint script
+RUN echo '#!/bin/sh\n\
+if [ "$SERVICE" = "facilitator" ]; then\n\
+    exec /app/facilitator\n\
+elif [ "$SERVICE" = "backend" ]; then\n\
+    exec /app/integration-test-backend\n\
+else\n\
+    echo "Error: SERVICE environment variable must be set to either '\''facilitator'\'' or '\''backend'\''"\n\
+    exit 1\n\
+fi' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+EXPOSE 4020 4021
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
+    CMD curl -f http://localhost:${PORT:-4020}/health || exit 1
+
+ENTRYPOINT ["/app/entrypoint.sh"]

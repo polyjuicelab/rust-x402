@@ -1,0 +1,34 @@
+# Ignore files that don't affect build
+target/
+.git/
+.gitignore
+*.md
+!README.md
+.env
+.env.*
+*.log
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test files (not needed in image)
+tests/
+*.test.rs
+integration-test/frontend/
+
+# Documentation
+docs/
+*.md
+!integration-test/README.md
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# Build artifacts
+*.o
+*.so
+*.a
+

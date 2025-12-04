@@ -167,6 +167,7 @@ impl HttpServer for Http3Server {
 
         #[cfg(not(feature = "http3"))]
         {
+            let _ = (router, config); // Suppress unused variable warnings when http3 feature is disabled
             Err(crate::X402Error::config(
                 "HTTP/3 support is not enabled. Compile with 'http3' feature flag.".to_string(),
             ))

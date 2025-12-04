@@ -1,0 +1,150 @@
+# All-in-one Docker image for integration testing
+# Contains: Anvil, Redis, Facilitator, Backend
+
+# Stage 1: Build Rust binaries
+FROM rust:latest as builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y pkg-config libssl-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files first (for better caching)
+COPY Cargo.toml Cargo.lock ./
+COPY README.md ./
+
+# Copy source code structure
+# This COPY will invalidate cache when any file in src/ changes
+COPY src ./src
+COPY main.rs ./
+
+# Copy integration test backend source
+COPY integration-test/backend/main.rs ./integration-test/backend/main.rs
+
+# Build binaries with cargo cache mount
+# Cache registry and git to avoid re-downloading dependencies
+# Note: We don't cache target/ as we need to copy binaries from it
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo build --release --bin facilitator --bin integration-test-backend --features axum,redis
+
+# Stage 2: Get Anvil from foundry image
+FROM ghcr.io/foundry-rs/foundry:latest as foundry
+
+# Stage 3: Runtime image
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && \
+    apt-get install -y \
+        ca-certificates \
+        curl \
+        redis-server \
+        && rm -rf /var/lib/apt/lists/*
+
+# Copy Anvil from foundry image
+COPY --from=foundry /usr/local/bin/anvil /usr/local/bin/anvil
+
+WORKDIR /app
+
+# Copy binaries from builder
+COPY --from=builder /app/target/release/facilitator /app/facilitator
+COPY --from=builder /app/target/release/integration-test-backend /app/integration-test-backend
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+# Start Redis\n\
+redis-server --daemonize yes --appendonly yes\n\
+\n\
+# Start Anvil\n\
+if [ -n "$ANVIL_FORK_BLOCK" ] && [ "$ANVIL_FORK_BLOCK" != "latest" ]; then\n\
+    anvil --host 0.0.0.0 --port 8545 --fork-url ${ANVIL_FORK_URL:-https://sepolia.base.org} --fork-block-number $ANVIL_FORK_BLOCK --chain-id 84532 --accounts 10 --balance 10000 &\n\
+else\n\
+    anvil --host 0.0.0.0 --port 8545 --fork-url ${ANVIL_FORK_URL:-https://sepolia.base.org} --chain-id 84532 --accounts 10 --balance 10000 &\n\
+fi\n\
+ANVIL_PID=$!\n\
+\n\
+# Wait for Anvil to be ready\n\
+echo "Waiting for Anvil..."\n\
+for i in {1..30}; do\n\
+    if curl -f -X POST -H "Content-Type: application/json" -d \047{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}\047 http://localhost:8545 > /dev/null 2>&1; then\n\
+        echo "Anvil is ready"\n\
+        break\n\
+    fi\n\
+    sleep 1\n\
+done\n\
+\n\
+# Wait for Redis to be ready\n\
+echo "Waiting for Redis..."\n\
+for i in {1..30}; do\n\
+    if redis-cli ping > /dev/null 2>&1; then\n\
+        echo "Redis is ready"\n\
+        break\n\
+    fi\n\
+    sleep 1\n\
+done\n\
+\n\
+# Start Facilitator\n\
+export BIND_ADDRESS=0.0.0.0:4020\n\
+export STORAGE_BACKEND=redis\n\
+export REDIS_URL=redis://localhost:6379\n\
+export REDIS_KEY_PREFIX=x402:nonce\n\
+export NETWORK=base-sepolia\n\
+/app/facilitator &\n\
+FACILITATOR_PID=$!\n\
+\n\
+# Wait for Facilitator to be ready\n\
+echo "Waiting for Facilitator..."\n\
+for i in {1..30}; do\n\
+    if curl -f http://localhost:4020/health > /dev/null 2>&1; then\n\
+        echo "Facilitator is ready"\n\
+        break\n\
+    fi\n\
+    sleep 1\n\
+done\n\
+\n\
+# Start Backend\n\
+export FACILITATOR_URL=http://localhost:4020\n\
+export RPC_URL=http://localhost:8545\n\
+export NETWORK=base-sepolia\n\
+export PORT=4021\n\
+/app/integration-test-backend &\n\
+BACKEND_PID=$!\n\
+\n\
+# Wait for Backend to be ready\n\
+echo "Waiting for Backend..."\n\
+for i in {1..30}; do\n\
+    if curl -f http://localhost:4021/health > /dev/null 2>&1; then\n\
+        echo "Backend is ready"\n\
+        break\n\
+    fi\n\
+    sleep 1\n\
+done\n\
+\n\
+echo "All services are ready!"\n\
+echo "Anvil: http://localhost:8545"\n\
+echo "Redis: localhost:6379"\n\
+echo "Facilitator: http://localhost:4020"\n\
+echo "Backend: http://localhost:4021"\n\
+\n\
+# Function to cleanup on exit\n\
+cleanup() {\n\
+    echo "Shutting down services..."\n\
+    kill $ANVIL_PID $FACILITATOR_PID $BACKEND_PID 2>/dev/null || true\n\
+    redis-cli shutdown 2>/dev/null || true\n\
+    exit 0\n\
+}\n\
+\n\
+trap cleanup SIGTERM SIGINT\n\
+\n\
+# Keep container running\n\
+wait $ANVIL_PID $FACILITATOR_PID $BACKEND_PID\n\
+' > /app/start-services.sh && chmod +x /app/start-services.sh
+
+EXPOSE 8545 6379 4020 4021
+
+CMD ["/app/start-services.sh"]

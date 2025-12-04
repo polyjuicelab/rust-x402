@@ -82,8 +82,6 @@ pub fn sign_message_hash(message_hash: H256, private_key: &str) -> Result<String
 fn ethereum_address_from_pubkey(pubkey: &k256::ecdsa::VerifyingKey) -> Result<Address> {
     // Get the public key in uncompressed format (65 bytes)
     // k256 uses compressed format by default, so we need to convert it
-    use k256::elliptic_curve::sec1::ToEncodedPoint;
-
     let encoded_point = pubkey.to_encoded_point(false); // false = uncompressed
     let pubkey_bytes = encoded_point.as_bytes();
 

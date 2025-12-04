@@ -60,8 +60,9 @@ mod tests {
     #[test]
     fn test_version_constants() {
         assert_eq!(X402_VERSION, 1);
-        // VERSION is a const string, so it's never empty
-        assert!(!VERSION.is_empty());
+        // VERSION is a const string from CARGO_PKG_VERSION
+        // Verify it contains version-like content (e.g., contains a dot or digit)
+        assert!(VERSION.contains('.') || VERSION.chars().any(|c| c.is_ascii_digit()));
     }
 
     #[test]

@@ -73,7 +73,7 @@ mod tests {
     #[tokio::test]
     async fn test_in_memory_storage_creation() {
         let storage = InMemoryStorage::new();
-        assert!(storage.has_nonce("test").await.unwrap() == false);
+        assert!(!storage.has_nonce("test").await.unwrap());
     }
 
     #[tokio::test]
@@ -131,7 +131,7 @@ mod tests {
         let test_nonce = "test_nonce_replay_abc";
 
         // First mark should succeed
-        assert!(storage.has_nonce(test_nonce).await.unwrap() == false);
+        assert!(!storage.has_nonce(test_nonce).await.unwrap());
         storage.mark_nonce(test_nonce).await.unwrap();
 
         // Second mark should still work (idempotent), but has_nonce should return true

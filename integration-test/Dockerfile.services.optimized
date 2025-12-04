@@ -1,0 +1,72 @@
+# Optimized multi-stage build with BuildKit cache mounts
+# Use: DOCKER_BUILDKIT=1 docker build -f integration-test/Dockerfile.services.optimized .
+FROM rust:latest as builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y pkg-config libssl-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files
+COPY Cargo.toml Cargo.lock ./
+COPY README.md ./
+
+# Create dummy binaries for dependency caching
+RUN mkdir -p src/bin integration-test/backend/src && \
+    echo 'fn main() {}' > src/bin/facilitator.rs && \
+    echo 'fn main() {}' > integration-test/backend/src/main.rs
+
+# Copy minimal source structure
+COPY src/lib.rs src/lib.rs 2>/dev/null || mkdir -p src && echo '// Placeholder' > src/lib.rs || true
+COPY src/error.rs src/error.rs 2>/dev/null || echo '// Placeholder' > src/error.rs || true
+
+# Build dependencies with cache mount (requires BuildKit)
+# This caches Cargo registry and git dependencies
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --bin facilitator --bin integration-test-backend --features axum,redis || \
+    cargo build --release --bin facilitator --features axum,redis || \
+    cargo build --release --bin integration-test-backend --features axum || true
+
+# Copy actual source code
+COPY src ./src
+COPY main.rs ./
+COPY integration-test/backend/main.rs ./integration-test/backend/main.rs
+
+# Build actual binaries (dependencies are cached)
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/app/target \
+    touch src/bin/facilitator.rs integration-test/backend/main.rs && \
+    cargo build --release --bin facilitator --bin integration-test-backend --features axum,redis
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /app/target/release/facilitator /app/facilitator
+COPY --from=builder /app/target/release/integration-test-backend /app/integration-test-backend
+
+RUN echo '#!/bin/sh\n\
+if [ "$SERVICE" = "facilitator" ]; then\n\
+    exec /app/facilitator\n\
+elif [ "$SERVICE" = "backend" ]; then\n\
+    exec /app/integration-test-backend\n\
+else\n\
+    echo "Error: SERVICE environment variable must be set to either '\''facilitator'\'' or '\''backend'\''"\n\
+    exit 1\n\
+fi' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+EXPOSE 4020 4021
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
+    CMD curl -f http://localhost:${PORT:-4020}/health || exit 1
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+

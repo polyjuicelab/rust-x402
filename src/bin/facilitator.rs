@@ -199,6 +199,7 @@ async fn verify_handler(
     State(facilitator): State<SimpleFacilitator>,
     Json(request): Json<VerifyRequest>,
 ) -> std::result::Result<Json<VerifyResponse>, StatusCode> {
+    tracing::debug!("Received verify request: x402_version = {}", request.x402_version);
     if request.x402_version != X402_VERSION {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -275,4 +276,140 @@ async fn health_handler() -> Json<serde_json::Value> {
         "version": rust_x402::VERSION,
         "x402_version": X402_VERSION,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_verify_request_deserialization_with_camelcase() {
+        // Test that VerifyRequest can deserialize JSON with camelCase field names
+        let json = json!({
+            "x402Version": 1,
+            "paymentPayload": {
+                "x402Version": 1,
+                "scheme": "exact",
+                "network": "base-sepolia",
+                "payload": {
+                    "signature": "0x123",
+                    "authorization": {
+                        "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                        "to": "0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d",
+                        "value": "100",
+                        "nonce": "0x123",
+                        "validAfter": "1764754567",
+                        "validBefore": "1764754927"
+                    }
+                }
+            },
+            "paymentRequirements": {
+                "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                "network": "base-sepolia",
+                "payTo": "0x209693bc6afc0c5328ba36faf03c514ef312287c",
+                "scheme": "exact",
+                "maxAmountRequired": "100",
+                "description": "test",
+                "resource": "/test",
+                "maxTimeoutSeconds": 60
+            }
+        });
+
+        let result: Result<VerifyRequest, _> = serde_json::from_value(json);
+        assert!(
+            result.is_ok(),
+            "Failed to deserialize VerifyRequest: {:?}",
+            result.err()
+        );
+        let request = result.unwrap();
+        assert_eq!(request.x402_version, 1);
+        assert_eq!(request.payment_payload.x402_version, 1);
+        assert_eq!(request.payment_payload.scheme, "exact");
+        assert_eq!(request.payment_payload.network, "base-sepolia");
+    }
+
+    #[test]
+    fn test_settle_request_deserialization_with_camelcase() {
+        // Test that SettleRequest can deserialize JSON with camelCase field names
+        let json = json!({
+            "x402Version": 1,
+            "paymentPayload": {
+                "x402Version": 1,
+                "scheme": "exact",
+                "network": "base-sepolia",
+                "payload": {
+                    "signature": "0x123",
+                    "authorization": {
+                        "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                        "to": "0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d",
+                        "value": "100",
+                        "nonce": "0x123",
+                        "validAfter": "1764754567",
+                        "validBefore": "1764754927"
+                    }
+                }
+            },
+            "paymentRequirements": {
+                "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                "network": "base-sepolia",
+                "payTo": "0x209693bc6afc0c5328ba36faf03c514ef312287c",
+                "scheme": "exact",
+                "maxAmountRequired": "100",
+                "description": "test",
+                "resource": "/test",
+                "maxTimeoutSeconds": 60
+            }
+        });
+
+        let result: Result<SettleRequest, _> = serde_json::from_value(json);
+        assert!(
+            result.is_ok(),
+            "Failed to deserialize SettleRequest: {:?}",
+            result.err()
+        );
+        let request = result.unwrap();
+        assert_eq!(request.x402_version, 1);
+        assert_eq!(request.payment_payload.x402_version, 1);
+    }
+
+    #[test]
+    fn test_verify_request_fails_with_snake_case() {
+        // Test that VerifyRequest fails to deserialize JSON with snake_case field names
+        let json = json!({
+            "x402_version": 1,
+            "payment_payload": {
+                "x402_version": 1,
+                "scheme": "exact",
+                "network": "base-sepolia",
+                "payload": {
+                    "signature": "0x123",
+                    "authorization": {
+                        "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                        "to": "0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d",
+                        "value": "100",
+                        "nonce": "0x123",
+                        "validAfter": "1764754567",
+                        "validBefore": "1764754927"
+                    }
+                }
+            },
+            "payment_requirements": {
+                "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                "network": "base-sepolia",
+                "payTo": "0x209693bc6afc0c5328ba36faf03c514ef312287c",
+                "scheme": "exact",
+                "maxAmountRequired": "100",
+                "description": "test",
+                "resource": "/test",
+                "maxTimeoutSeconds": 60
+            }
+        });
+
+        let result: Result<VerifyRequest, _> = serde_json::from_value(json);
+        assert!(
+            result.is_err(),
+            "Should fail to deserialize with snake_case field names"
+        );
+    }
 }

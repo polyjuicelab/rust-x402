@@ -44,16 +44,22 @@ services:
       retries: 5
     command: redis-server --appendonly yes
 
-  # Facilitator service
+  # Combined services image (backend + facilitator)
+  # Using a single image reduces build time by sharing dependencies
+  # Optimized for caching: dependencies are built separately from source
   facilitator:
     build:
       context: .
-      dockerfile: integration-test/Dockerfile.facilitator
+      dockerfile: integration-test/Dockerfile.services
+      # Enable BuildKit cache for faster rebuilds
+      # Use: COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 docker-compose build
     container_name: x402-facilitator
     ports:
       - "4020:4020"
     environment:
+      - SERVICE=facilitator
       - BIND_ADDRESS=0.0.0.0:4020
+      - PORT=4020
       - STORAGE_BACKEND=redis
       - REDIS_URL=redis://redis:6379
       - REDIS_KEY_PREFIX=x402:nonce
@@ -71,19 +77,22 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend Axum server
+  # Backend Axum server (using same image as facilitator)
+  # Shares build cache with facilitator for faster builds
   backend:
     build:
       context: .
-      dockerfile: integration-test/Dockerfile.backend
+      dockerfile: integration-test/Dockerfile.services
+      # Same image as facilitator, just different SERVICE env var
     container_name: x402-backend
     ports:
       - "4021:4021"
     environment:
+      - SERVICE=backend
+      - PORT=4021
       - FACILITATOR_URL=http://facilitator:4020
       - RPC_URL=http://anvil:8545
       - NETWORK=base-sepolia
-      - PORT=4021
     networks:
       - x402-network
     depends_on:
