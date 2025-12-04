@@ -41,3 +41,4 @@ docs/
 # Docker
 integration-test/.env
 docker-compose.override.yml
+*.md
