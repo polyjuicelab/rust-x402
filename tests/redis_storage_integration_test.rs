@@ -15,8 +15,22 @@ use rust_x402::facilitator_storage::redis_storage::RedisStorage;
 /// Check if Redis is available at the given URL
 #[cfg(feature = "redis")]
 async fn check_redis_available(redis_url: &str) -> bool {
-    match RedisStorage::new(redis_url, None).await {
-        Ok(_) => true,
+    // Use async connection check to avoid panics when Redis is not available
+    use redis::Client;
+    match Client::open(redis_url) {
+        Ok(client) => {
+            match client.get_multiplexed_async_connection().await {
+                Ok(mut conn) => {
+                    // Try to ping Redis using AsyncCommands
+                    use redis::AsyncCommands;
+                    match conn.exists::<&str, bool>("__test_key__").await {
+                        Ok(_) => true,
+                        Err(_) => false,
+                    }
+                }
+                Err(_) => false,
+            }
+        }
         Err(_) => false,
     }
 }
@@ -87,6 +101,7 @@ async fn test_in_memory_storage_replay_protection() {
 
 #[tokio::test]
 #[cfg(feature = "redis")]
+#[ignore] // Requires Redis service
 async fn test_redis_storage_creation() {
     let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
 
@@ -106,6 +121,7 @@ async fn test_redis_storage_creation() {
 
 #[tokio::test]
 #[cfg(feature = "redis")]
+#[ignore] // Requires Redis service
 async fn test_redis_storage_custom_prefix() {
     let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
 
@@ -140,6 +156,7 @@ async fn test_redis_storage_custom_prefix() {
 
 #[tokio::test]
 #[cfg(feature = "redis")]
+#[ignore] // Requires Redis service
 async fn test_redis_storage_basic_operations() {
     let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
 
@@ -179,6 +196,7 @@ async fn test_redis_storage_basic_operations() {
 
 #[tokio::test]
 #[cfg(feature = "redis")]
+#[ignore] // Requires Redis service
 async fn test_redis_storage_replay_protection() {
     let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
 
@@ -211,6 +229,7 @@ async fn test_redis_storage_replay_protection() {
 
 #[tokio::test]
 #[cfg(feature = "redis")]
+#[ignore] // Requires Redis service
 async fn test_redis_storage_multiple_nonces() {
     let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
 
@@ -255,6 +274,7 @@ async fn test_redis_storage_multiple_nonces() {
 
 #[tokio::test]
 #[cfg(feature = "redis")]
+#[ignore] // Requires Redis service
 async fn test_redis_storage_concurrent_access() {
     let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
 
